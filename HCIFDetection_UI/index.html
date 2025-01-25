@@ -200,10 +200,10 @@
             formData.append('video', videoBlob);
             formData.append('pdf', pdfFile);
 
-            fetch('http://localhost:7071/api/ICFDetection', {
+            fetch('https://hicfdetection-api.azurewebsites.net/api/ICFDetection', {
                 method: 'POST',
                 headers:{
-                'Access-Control-Allow-Origin': 'http://localhost.com'
+                'Access-Control-Allow-Origin': 'https://hicfdetection-api.azurewebsites.net/api/ICFDetection'
                 },
                 body: formData,
             })

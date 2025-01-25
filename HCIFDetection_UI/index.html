@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance Claim Analysis</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #0078d4;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        input[type="file"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+        }
+
+        .video-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            max-width: 600px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        button {
+            background-color: #0078d4;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:disabled {
+            background-color: #a1a1a1;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #005bb5;
+        }
+
+        .timer, .message {
+            font-size: 14px;
+            margin-top: 10px;
+            color: #0078d4;
+            font-weight: bold;
+        }
+
+        .results {
+            padding: 15px;
+            background-color: #f4f6f8;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Insurance Claim Analysis</h1>
+        <div class="section">
+            <label for="claim-file">Upload Claim Document (PDF):</label>
+            <input type="file" id="claim-file" accept="application/pdf" />
+        </div>
+        <div class="section video-wrapper">
+            <label>Record Live Video (60 seconds):</label>
+            <video id="video" autoplay muted></video>
+            <div class="button-group">
+                <button id="start-recording">Start Recording</button>
+                <button id="stop-recording" disabled>Stop Recording</button>
+            </div>
+            <div class="timer" id="timer"></div>
+            <div class="message" id="message"></div>
+            <video id="saved-video" controls hidden></video>
+        </div>
+        <div class="section">
+            <h2>Results</h2>
+            <div id="results" class="results">Results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('start-recording');
+        const stopBtn = document.getElementById('stop-recording');
+        const video = document.getElementById('video');
+        const savedVideo = document.getElementById('saved-video');
+        const timerDiv = document.getElementById('timer');
+        const messageDiv = document.getElementById('message');
+        const resultsDiv = document.getElementById('results');
+        const claimFileInput = document.getElementById('claim-file');
+
+        let mediaRecorder, recordedChunks = [];
+        let countdownInterval;
+
+        async function initVideoStream() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                video.srcObject = stream;
+
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = (event) => recordedChunks.push(event.data);
+                mediaRecorder.onstop = () => handleRecordingStop();
+            } catch (error) {
+                console.error('Error accessing camera/microphone:', error);
+                alert('Unable to access your camera and microphone. Please check permissions.');
+            }
+        }
+
+        function handleRecordingStop() {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            recordedChunks = [];
+
+            const videoURL = URL.createObjectURL(blob);
+            savedVideo.src = videoURL;
+            savedVideo.hidden = false;
+
+            messageDiv.textContent = 'Recording saved successfully!';
+            uploadData(blob);
+
+            if (video.srcObject) 
+            {
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop()); 
+                video.srcObject = null;
+            }
+
+            document.getElementById('video').style.display = 'none';
+        }
+
+        function startTimer(duration) {
+            let remainingTime = duration;
+            timerDiv.textContent = `Time remaining: ${remainingTime} seconds`;
+            countdownInterval = setInterval(() => {
+                remainingTime -= 1;
+                if (remainingTime <= 0) {
+                    clearInterval(countdownInterval);
+                    if (mediaRecorder.state !== 'inactive') {
+                        mediaRecorder.stop();
+                    }
+                }
+                timerDiv.textContent = `Time remaining: ${remainingTime} seconds`;
+            }, 1000);
+        }
+
+        function uploadData(videoBlob) {
+            const formData = new FormData();
+            const pdfFile = claimFileInput.files[0];
+
+            if (!pdfFile) {
+                alert('Please upload a PDF claim document.');
+                return;
+            }
+
+            formData.append('video', videoBlob);
+            formData.append('pdf', pdfFile);
+
+            fetch('http://localhost:7071/api/ICFDetection', {
+                method: 'POST',
+                headers:{
+                'Access-Control-Allow-Origin': 'http://localhost.com'
+                },
+                body: formData,
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    resultsDiv.textContent = JSON.stringify(data, null, 2);
+                })
+                .catch((error) => {
+                    console.error('Error processing the request:', error);
+                    resultsDiv.textContent = 'Error processing the request. Please try again later.';
+                });
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (!mediaRecorder) return;
+            mediaRecorder.start();
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            messageDiv.textContent = '';
+            savedVideo.hidden = true;
+
+            startTimer(60); 
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            clearInterval(countdownInterval);
+            timerDiv.textContent = '';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+
+        window.onload = initVideoStream;
+    </script>
+</body>
+</html>

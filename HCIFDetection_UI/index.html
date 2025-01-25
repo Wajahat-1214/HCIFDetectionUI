@@ -202,9 +202,6 @@
 
             fetch('https://hicfdetection-api.azurewebsites.net/api/ICFDetection', {
                 method: 'POST',
-                headers:{
-                'Access-Control-Allow-Origin': 'https://hicfdetection-api.azurewebsites.net/api/ICFDetection'
-                },
                 body: formData,
             })
                 .then((response) => response.json())
